@@ -3,6 +3,7 @@ from app.tools.spending_tools import get_mock_spending_data
 from app.tools.fraud_tools import get_mock_fraud_case
 from app.tools.general_tools import generate_general_support
 from app.tools.customer_context import get_customer_context
+from app.rag.retriever import retrieve_relevant_chunks
 
 from datetime import datetime, timezone
 import uuid
@@ -11,11 +12,34 @@ import uuid
 def detect_intent_node(state: ChatState) -> ChatState:
     message = state["message"].lower()
     words = message.split()
+    informational_prefixes = ("what is", "how does", "how long")
+    informational_queries = [
+        "how do chargebacks work",
+        "how long does a refund take",
+        "what happens when my card is frozen",
+    ]
+    action_fraud_phrases = [
+        "check my card for suspicious activity",
+        "fraud on my card",
+        "someone used my card",
+        "unauthorised transaction",
+        "unauthorized transaction",
+        "freeze my card",
+    ]
 
     if any(word in words for word in ["hello", "hi", "hey"]):
         intent = "greeting"
 
-    elif any(word in message for word in ["suspicious", "fraud", "charge", "scam", "unrecognized"]):
+    elif (
+        any(query in message for query in informational_queries)
+        or message.startswith(informational_prefixes)
+    ):
+        intent = "general"
+
+    elif (
+        any(phrase in message for phrase in action_fraud_phrases)
+        or any(word in message for word in ["suspicious", "fraud", "scam", "unrecognized"])
+    ):
         intent = "fraud_check"
 
     elif any(word in message for word in ["spend", "spending", "transaction", "transactions", "groceries", "budget"]):
@@ -219,12 +243,40 @@ def escalation_node(state: ChatState) -> ChatState:
 
 
 def general_node(state: ChatState) -> ChatState:
-    decision_trace = state.get("decision_trace", []) + ["handler: general_node_llm"]
-    reply = generate_general_support(state["message"])
+    decision_trace = state.get("decision_trace", []) + ["handler: general_node"]
+    relevant_chunks = retrieve_relevant_chunks(state["message"], top_k=3)
     conversation_history = state.get("conversation_history", [])
 
-    if conversation_history:
-        reply = f"I can see you have previous BankOps interactions. {reply}"
+    if relevant_chunks:
+        decision_trace = decision_trace + [f"rag_chunks_found: {len(relevant_chunks)}"]
+        top_score = relevant_chunks[0]["score"]
+        sources = sorted(
+            {
+                chunk["filename"]
+                for chunk in relevant_chunks
+                if chunk["score"] == top_score
+            }
+        )
+        primary_content = relevant_chunks[0]["content"].lower()
+
+        if "freeze" in primary_content and "pending transactions may still complete" in primary_content:
+            answer = (
+                "Based on our card freeze policy, when a card is frozen, new card transactions "
+                "are blocked, but pending transactions may still complete."
+            )
+        else:
+            answer = (
+                "Based on our support guidance, I found relevant internal policy information "
+                "for your question."
+            )
+
+        reply = f"{answer} Source: {', '.join(sources)}"
+    else:
+        decision_trace = decision_trace + ["rag_chunks_found: 0", "fallback: general_support"]
+        reply = generate_general_support(state["message"])
+
+        if conversation_history:
+            reply = f"I can see you have previous BankOps interactions. {reply}"
 
     return {
         **state,
