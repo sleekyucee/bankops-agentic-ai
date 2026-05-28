@@ -36,10 +36,18 @@ def detect_intent_node(state: ChatState) -> ChatState:
 
 def greeting_node(state: ChatState) -> ChatState:
     decision_trace = state.get("decision_trace", []) + ["handler: greeting_node"]
+    conversation_history = state.get("conversation_history", [])
+    reply = "Hello! I can help with banking support, spending insights, and suspicious transaction checks."
+
+    if conversation_history:
+        reply = (
+            "Welcome back. I can see you've used BankOps recently. "
+            "I can help with banking support, spending insights, and suspicious transaction checks."
+        )
 
     return {
         **state,
-        "reply": "Hello! I can help with banking support, spending insights, and suspicious transaction checks.",
+        "reply": reply,
         "escalation_required": False,
         "escalation_priority": None,
         "assigned_team": None,
@@ -94,8 +102,8 @@ def fraud_node(state: ChatState) -> ChatState:
     reason = flagged_transaction["reason"]
     risk_level = fraud_case["risk_level"]
     card_status = fraud_case["card_status"]
-    open_ticket_id = customer_context["open_ticket_id"]
     context_card_status = customer_context["card_status"]
+    account_risk_level = customer_context["account_risk_level"]
 
     if risk_level == "high":
         next_step = "freeze card and review your most recent transactions immediately."
@@ -104,15 +112,10 @@ def fraud_node(state: ChatState) -> ChatState:
     else:
         next_step = "keep monitoring the transaction and contact support if anything changes."
 
-    if open_ticket_id:
-        context_summary = (
-            f"I can see you already have an open fraud case {open_ticket_id} "
-            f"and your card is currently {context_card_status}. "
-        )
-    else:
-        context_summary = (
-            f"I can see there is no open fraud case and your card is currently {context_card_status}. "
-        )
+    context_summary = (
+        f"I can see your account risk level is {account_risk_level} "
+        f"and your card is currently {context_card_status}. "
+    )
 
     reply = (
         context_summary +
@@ -218,6 +221,11 @@ def escalation_node(state: ChatState) -> ChatState:
 def general_node(state: ChatState) -> ChatState:
     decision_trace = state.get("decision_trace", []) + ["handler: general_node_llm"]
     reply = generate_general_support(state["message"])
+    conversation_history = state.get("conversation_history", [])
+
+    if conversation_history:
+        reply = f"I can see you have previous BankOps interactions. {reply}"
+
     return {
         **state,
         "reply": reply,

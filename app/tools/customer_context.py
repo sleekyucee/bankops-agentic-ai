@@ -1,39 +1,34 @@
-def get_customer_context(user_id: str) -> dict:
-    context_by_user = {
-        "user_001": {
-            "customer_name": "Uche",
-            "open_ticket_id": "TKT-1024",
-            "last_issue": "reported suspicious card activity",
-            "card_status": "frozen",
-            "account_risk_level": "high",
-            "recent_contact_count": 2
-        },
-        "user_002": {
-            "customer_name": "Amara",
-            "open_ticket_id": None,
-            "last_issue": None,
-            "card_status": "active",
-            "account_risk_level": "low",
-            "recent_contact_count": 0
-        },
-        "user_003": {
-            "customer_name": "Tunde",
-            "open_ticket_id": "TKT-2048",
-            "last_issue": "recent spending dispute",
-            "card_status": "active",
-            "account_risk_level": "medium",
-            "recent_contact_count": 3
-        },
-    }
+from app.db.database import get_connection
 
-    return context_by_user.get(
-        user_id,
-        {
-            "customer_name": "there",
-            "open_ticket_id": None,
-            "last_issue": None,
+
+def get_customer_context(user_id: str) -> dict:
+    query = """
+        SELECT
+            user_id,
+            customer_name,
+            card_status,
+            account_risk_level,
+            recent_contact_count
+        FROM customer_profiles
+        WHERE user_id = ?
+    """
+
+    with get_connection() as connection:
+        row = connection.execute(query, (user_id,)).fetchone()
+
+    if row is None:
+        return {
+            "user_id": user_id,
+            "customer_name": "Customer",
             "card_status": "active",
-            "account_risk_level": "low",
+            "account_risk_level": "unknown",
             "recent_contact_count": 0
         }
-    )
+
+    return {
+        "user_id": row["user_id"],
+        "customer_name": row["customer_name"],
+        "card_status": row["card_status"],
+        "account_risk_level": row["account_risk_level"],
+        "recent_contact_count": row["recent_contact_count"]
+    }

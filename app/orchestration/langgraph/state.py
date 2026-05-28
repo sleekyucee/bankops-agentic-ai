@@ -3,6 +3,7 @@ from typing import TypedDict, List, Optional
 class ChatState(TypedDict):
     user_id: str
     message: str
+    conversation_history: list
     intent: str
     reply: str
     escalation_required: bool

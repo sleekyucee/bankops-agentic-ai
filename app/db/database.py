@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -223,6 +224,53 @@ def seed_initial_data() -> None:
 def initialize_database() -> None:
     create_tables()
     seed_initial_data()
+
+
+def save_conversation(user_id: str, message: str, intent: str, reply: str) -> None:
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    with get_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO conversation_history (
+                user_id,
+                message,
+                intent,
+                reply,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (user_id, message, intent, reply, created_at),
+        )
+
+
+def get_recent_conversations(user_id: str, limit: int = 5) -> list[dict]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                message,
+                intent,
+                reply,
+                created_at
+            FROM conversation_history
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+
+    return [
+        {
+            "message": row["message"],
+            "intent": row["intent"],
+            "reply": row["reply"],
+            "created_at": row["created_at"],
+        }
+        for row in rows
+    ]
 
 
 if __name__ == "__main__":
