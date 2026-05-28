@@ -3,3 +3,10 @@ __pycache__/
 venv/
 .env
 
+# SQLite
+bankops.db
+*.db
+
+# Codex / Windows sandbox
+Microsoft/
+
