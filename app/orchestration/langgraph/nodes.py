@@ -6,6 +6,7 @@ from app.tools.customer_context import get_customer_context
 from app.rag.retriever import retrieve_relevant_chunks
 
 from datetime import datetime, timezone
+import re
 import uuid
 
 
@@ -242,10 +243,92 @@ def escalation_node(state: ChatState) -> ChatState:
     }
 
 
+def _clean_knowledge_line(line: str) -> str:
+    line = line.strip()
+    line = re.sub(r"^#+\s*", "", line)
+    line = re.sub(r"^[-*]\s*", "", line)
+    return line.strip()
+
+
+def _customer_facing_knowledge_line(line: str) -> str:
+    replacements = [
+        ("Use this guidance when", "This guidance applies when"),
+        ("Use chargeback support when", "You can use chargeback support when"),
+        ("Use a card freeze when", "A card freeze may be used when"),
+        ("Advise the customer to", "You should"),
+        ("Recommend enabling", "It may help to enable"),
+        ("Recommend freezing", "It may help to freeze"),
+        ("Recommend", "It may help to"),
+        (
+            "Review recent account activity with the customer",
+            "We may review recent account activity with you",
+        ),
+        (
+            "Tell the customer",
+            "We will explain",
+        ),
+        (
+            "Create or update",
+            "We may create or update",
+        ),
+        (
+            "Collect transaction details",
+            "We may ask for transaction details",
+        ),
+    ]
+
+    for internal_phrase, customer_phrase in replacements:
+        line = line.replace(internal_phrase, customer_phrase)
+
+    return line
+
+
+def _build_deterministic_rag_answer(chunk_content: str) -> str:
+    ignored_headings = {
+        "purpose",
+        "support action",
+        "customer message",
+        "process",
+        "eligible scenarios",
+        "not a chargeback",
+        "handoff",
+        "when to freeze",
+        "standard timelines",
+        "when to escalate",
+        "immediate steps",
+        "escalation",
+        "priority levels",
+        "target response",
+        "assignment",
+        "reversal",
+    }
+    useful_lines = []
+
+    for raw_line in chunk_content.splitlines():
+        if raw_line.strip().startswith("#"):
+            continue
+
+        line = _clean_knowledge_line(raw_line)
+
+        if not line or line.lower() in ignored_headings:
+            continue
+
+        useful_lines.append(_customer_facing_knowledge_line(line))
+
+        if len(useful_lines) == 4:
+            break
+
+    return " ".join(useful_lines)
+
+
 def general_node(state: ChatState) -> ChatState:
     decision_trace = state.get("decision_trace", []) + ["handler: general_node"]
     relevant_chunks = retrieve_relevant_chunks(state["message"], top_k=3)
     conversation_history = state.get("conversation_history", [])
+
+    if not relevant_chunks and "chargebacks" in state["message"].lower():
+        normalized_query = state["message"].lower().replace("chargebacks", "chargeback")
+        relevant_chunks = retrieve_relevant_chunks(normalized_query, top_k=3)
 
     if relevant_chunks:
         decision_trace = decision_trace + [f"rag_chunks_found: {len(relevant_chunks)}"]
@@ -257,18 +340,7 @@ def general_node(state: ChatState) -> ChatState:
                 if chunk["score"] == top_score
             }
         )
-        primary_content = relevant_chunks[0]["content"].lower()
-
-        if "freeze" in primary_content and "pending transactions may still complete" in primary_content:
-            answer = (
-                "Based on our card freeze policy, when a card is frozen, new card transactions "
-                "are blocked, but pending transactions may still complete."
-            )
-        else:
-            answer = (
-                "Based on our support guidance, I found relevant internal policy information "
-                "for your question."
-            )
+        answer = _build_deterministic_rag_answer(relevant_chunks[0]["content"])
 
         reply = f"{answer} Source: {', '.join(sources)}"
     else:
