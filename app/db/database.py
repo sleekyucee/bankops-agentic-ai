@@ -66,6 +66,18 @@ def create_tables() -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS system_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT,
+                user_id TEXT,
+                intent TEXT,
+                metadata TEXT,
+                created_at TEXT
+            )
+            """
+        )
 
 
 def seed_initial_data() -> None:
@@ -284,6 +296,95 @@ def create_support_ticket(
         )
 
     return ticket_id
+
+
+def record_metric(
+    event_type: str,
+    user_id: str | None = None,
+    intent: str | None = None,
+    metadata: dict | None = None,
+) -> None:
+    created_at = datetime.now(timezone.utc).isoformat()
+    metadata_json = json.dumps(metadata or {})
+
+    with get_connection() as connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS system_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT,
+                user_id TEXT,
+                intent TEXT,
+                metadata TEXT,
+                created_at TEXT
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO system_metrics (
+                event_type,
+                user_id,
+                intent,
+                metadata,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (event_type, user_id, intent, metadata_json, created_at),
+        )
+
+
+def get_metrics_summary() -> dict:
+    with get_connection() as connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS system_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT,
+                user_id TEXT,
+                intent TEXT,
+                metadata TEXT,
+                created_at TEXT
+            )
+            """
+        )
+        rows = connection.execute(
+            """
+            SELECT event_type, intent, metadata
+            FROM system_metrics
+            """
+        ).fetchall()
+
+    intent_counts = {}
+    event_counts = {}
+    rag_vector_used = 0
+    rag_keyword_used = 0
+
+    for row in rows:
+        event_type = row["event_type"]
+        event_counts[event_type] = event_counts.get(event_type, 0) + 1
+
+        if event_type == "conversation_saved" and row["intent"]:
+            intent = row["intent"]
+            intent_counts[intent] = intent_counts.get(intent, 0) + 1
+
+        if event_type == "rag_retriever_used":
+            metadata = json.loads(row["metadata"] or "{}")
+            if metadata.get("retriever") == "vector":
+                rag_vector_used += 1
+            elif metadata.get("retriever") == "keyword":
+                rag_keyword_used += 1
+
+    return {
+        "total_events": len(rows),
+        "total_chat_requests": event_counts.get("chat_request_received", 0),
+        "intent_counts": intent_counts,
+        "tickets_created": event_counts.get("ticket_created", 0),
+        "rag_vector_used": rag_vector_used,
+        "rag_keyword_used": rag_keyword_used,
+        "conversations_saved": event_counts.get("conversation_saved", 0),
+    }
 
 
 def get_support_tickets(user_id: str | None = None) -> list[dict]:

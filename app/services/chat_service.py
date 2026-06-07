@@ -1,8 +1,12 @@
 from app.models.chat import ChatRequest, ChatResponse
 from app.orchestration.langgraph.graph import chat_graph
-from app.db.database import get_recent_conversations, save_conversation
+from app.db.database import get_recent_conversations, record_metric, save_conversation
 
 def generate_chat_response(request: ChatRequest) -> ChatResponse:
+    record_metric(
+        event_type="chat_request_received",
+        user_id=request.user_id,
+    )
     recent_conversations = get_recent_conversations(request.user_id)
 
     final_state = chat_graph.invoke(
@@ -19,6 +23,11 @@ def generate_chat_response(request: ChatRequest) -> ChatResponse:
         message=request.message,
         intent=final_state["intent"],
         reply=final_state["reply"],
+    )
+    record_metric(
+        event_type="conversation_saved",
+        user_id=request.user_id,
+        intent=final_state["intent"],
     )
 
     return ChatResponse(

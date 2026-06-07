@@ -1,6 +1,10 @@
 from fastapi import APIRouter
 
-from app.db.database import get_recent_conversations, get_support_tickets
+from app.db.database import (
+    get_metrics_summary,
+    get_recent_conversations,
+    get_support_tickets,
+)
 from app.rag.retriever import retrieve_relevant_chunks
 from app.rag.vector_store import search_vector_store
 from app.tools.customer_context import get_customer_context
@@ -59,3 +63,8 @@ def debug_tickets_for_user(user_id: str):
     return {
         "tickets": get_support_tickets(user_id),
     }
+
+
+@router.get("/metrics")
+def debug_metrics():
+    return get_metrics_summary()

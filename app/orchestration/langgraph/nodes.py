@@ -5,7 +5,7 @@ from app.tools.general_tools import fallback_general_support
 from app.tools.customer_context import get_customer_context
 from app.rag.retriever import retrieve_relevant_chunks
 from app.rag.vector_store import search_vector_store
-from app.db.database import create_support_ticket
+from app.db.database import create_support_ticket, record_metric
 
 from datetime import datetime, timezone
 import re
@@ -228,6 +228,17 @@ def escalation_node(state: ChatState) -> ChatState:
         assigned_team=assigned_team,
         case_summary=case_summary,
     )
+    record_metric(
+        event_type="ticket_created",
+        user_id=state["user_id"],
+        intent=state.get("intent"),
+        metadata={
+            "ticket_id": ticket_id,
+            "issue_type": issue_type,
+            "priority": priority,
+            "assigned_team": assigned_team,
+        },
+    )
     created_at = datetime.now(timezone.utc).isoformat()
 
     decision_trace = state.get("decision_trace", []) + [
@@ -348,6 +359,15 @@ def general_node(state: ChatState) -> ChatState:
     if vector_documents:
         decision_trace.append("rag_retriever: vector")
         decision_trace.append(f"rag_chunks_found: {len(vector_documents)}")
+        record_metric(
+            event_type="rag_retriever_used",
+            user_id=state["user_id"],
+            intent=state.get("intent"),
+            metadata={
+                "retriever": "vector",
+                "chunks_found": len(vector_documents),
+            },
+        )
         sources = sorted(
             {
                 document.metadata.get("filename", "unknown")
@@ -365,6 +385,15 @@ def general_node(state: ChatState) -> ChatState:
 
         decision_trace.append("rag_retriever: keyword")
         decision_trace.append(f"rag_chunks_found: {len(relevant_chunks)}")
+        record_metric(
+            event_type="rag_retriever_used",
+            user_id=state["user_id"],
+            intent=state.get("intent"),
+            metadata={
+                "retriever": "keyword",
+                "chunks_found": len(relevant_chunks),
+            },
+        )
 
         if relevant_chunks:
             top_score = relevant_chunks[0]["score"]
