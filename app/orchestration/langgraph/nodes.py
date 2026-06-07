@@ -1,9 +1,10 @@
 from app.orchestration.langgraph.state import ChatState
 from app.tools.spending_tools import get_mock_spending_data
 from app.tools.fraud_tools import get_mock_fraud_case
-from app.tools.general_tools import generate_general_support
+from app.tools.general_tools import fallback_general_support
 from app.tools.customer_context import get_customer_context
 from app.rag.retriever import retrieve_relevant_chunks
+from app.rag.vector_store import search_vector_store
 from app.db.database import create_support_ticket
 
 from datetime import datetime, timezone
@@ -336,32 +337,52 @@ def _build_deterministic_rag_answer(chunk_content: str) -> str:
 
 def general_node(state: ChatState) -> ChatState:
     decision_trace = state.get("decision_trace", []) + ["handler: general_node"]
-    relevant_chunks = retrieve_relevant_chunks(state["message"], top_k=3)
     conversation_history = state.get("conversation_history", [])
+    vector_documents = []
 
-    if not relevant_chunks and "chargebacks" in state["message"].lower():
-        normalized_query = state["message"].lower().replace("chargebacks", "chargeback")
-        relevant_chunks = retrieve_relevant_chunks(normalized_query, top_k=3)
+    try:
+        vector_documents = search_vector_store(state["message"], top_k=3)
+    except Exception:
+        vector_documents = []
 
-    if relevant_chunks:
-        decision_trace = decision_trace + [f"rag_chunks_found: {len(relevant_chunks)}"]
-        top_score = relevant_chunks[0]["score"]
+    if vector_documents:
+        decision_trace.append("rag_retriever: vector")
+        decision_trace.append(f"rag_chunks_found: {len(vector_documents)}")
         sources = sorted(
             {
-                chunk["filename"]
-                for chunk in relevant_chunks
-                if chunk["score"] == top_score
+                document.metadata.get("filename", "unknown")
+                for document in vector_documents
             }
         )
-        answer = _build_deterministic_rag_answer(relevant_chunks[0]["content"])
-
+        answer = _build_deterministic_rag_answer(vector_documents[0].page_content)
         reply = f"{answer} Source: {', '.join(sources)}"
     else:
-        decision_trace = decision_trace + ["rag_chunks_found: 0", "fallback: general_support"]
-        reply = generate_general_support(state["message"])
+        relevant_chunks = retrieve_relevant_chunks(state["message"], top_k=3)
 
-        if conversation_history:
-            reply = f"I can see you have previous BankOps interactions. {reply}"
+        if not relevant_chunks and "chargebacks" in state["message"].lower():
+            normalized_query = state["message"].lower().replace("chargebacks", "chargeback")
+            relevant_chunks = retrieve_relevant_chunks(normalized_query, top_k=3)
+
+        decision_trace.append("rag_retriever: keyword")
+        decision_trace.append(f"rag_chunks_found: {len(relevant_chunks)}")
+
+        if relevant_chunks:
+            top_score = relevant_chunks[0]["score"]
+            sources = sorted(
+                {
+                    chunk["filename"]
+                    for chunk in relevant_chunks
+                    if chunk["score"] == top_score
+                }
+            )
+            answer = _build_deterministic_rag_answer(relevant_chunks[0]["content"])
+            reply = f"{answer} Source: {', '.join(sources)}"
+        else:
+            decision_trace = decision_trace + ["fallback: general_support"]
+            reply = fallback_general_support(state["message"])
+
+            if conversation_history:
+                reply = f"I can see you have previous BankOps interactions. {reply}"
 
     return {
         **state,

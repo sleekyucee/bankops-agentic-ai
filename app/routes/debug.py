@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.db.database import get_recent_conversations, get_support_tickets
 from app.rag.retriever import retrieve_relevant_chunks
+from app.rag.vector_store import search_vector_store
 from app.tools.customer_context import get_customer_context
 
 
@@ -26,6 +27,23 @@ def debug_rag_search(q: str):
     return {
         "query": q,
         "results": retrieve_relevant_chunks(q, top_k=3),
+    }
+
+
+@router.get("/rag/vector-search")
+def debug_rag_vector_search(q: str):
+    documents = search_vector_store(q, top_k=3)
+
+    return {
+        "query": q,
+        "results": [
+            {
+                "filename": document.metadata.get("filename"),
+                "content": document.page_content,
+                "source": document.metadata.get("source"),
+            }
+            for document in documents
+        ],
     }
 
 
