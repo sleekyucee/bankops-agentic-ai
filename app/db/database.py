@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -243,6 +244,73 @@ def save_conversation(user_id: str, message: str, intent: str, reply: str) -> No
             """,
             (user_id, message, intent, reply, created_at),
         )
+
+
+def create_support_ticket(
+    user_id: str,
+    issue_type: str,
+    priority: str,
+    assigned_team: str,
+    case_summary: str,
+) -> str:
+    ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    with get_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO support_tickets (
+                ticket_id,
+                user_id,
+                issue_type,
+                priority,
+                assigned_team,
+                status,
+                case_summary,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ticket_id,
+                user_id,
+                issue_type,
+                priority,
+                assigned_team,
+                "open",
+                case_summary,
+                created_at,
+            ),
+        )
+
+    return ticket_id
+
+
+def get_support_tickets(user_id: str | None = None) -> list[dict]:
+    query = """
+        SELECT
+            ticket_id,
+            user_id,
+            issue_type,
+            priority,
+            assigned_team,
+            status,
+            case_summary,
+            created_at
+        FROM support_tickets
+    """
+    parameters = ()
+
+    if user_id is not None:
+        query += " WHERE user_id = ?"
+        parameters = (user_id,)
+
+    query += " ORDER BY created_at DESC"
+
+    with get_connection() as connection:
+        rows = connection.execute(query, parameters).fetchall()
+
+    return [dict(row) for row in rows]
 
 
 def get_recent_conversations(user_id: str, limit: int = 5) -> list[dict]:

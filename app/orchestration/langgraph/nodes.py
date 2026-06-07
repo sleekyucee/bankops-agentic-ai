@@ -4,6 +4,7 @@ from app.tools.fraud_tools import get_mock_fraud_case
 from app.tools.general_tools import generate_general_support
 from app.tools.customer_context import get_customer_context
 from app.rag.retriever import retrieve_relevant_chunks
+from app.db.database import create_support_ticket
 
 from datetime import datetime, timezone
 import re
@@ -212,9 +213,21 @@ def escalation_node(state: ChatState) -> ChatState:
     else:
         assigned_team = "general_support"
 
-    ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
-    created_at = datetime.now(timezone.utc).isoformat()
+    issue_type_by_team = {
+        "fraud_support": "fraud",
+        "account_support": "account_access",
+        "general_support": "general_support",
+    }
+    issue_type = issue_type_by_team[assigned_team]
     case_summary = f"Escalation request routed to {assigned_team} with {priority} priority."
+    ticket_id = create_support_ticket(
+        user_id=state["user_id"],
+        issue_type=issue_type,
+        priority=priority,
+        assigned_team=assigned_team,
+        case_summary=case_summary,
+    )
+    created_at = datetime.now(timezone.utc).isoformat()
 
     decision_trace = state.get("decision_trace", []) + [
         "handler: escalation_node",
@@ -226,7 +239,7 @@ def escalation_node(state: ChatState) -> ChatState:
 
     reply = (
         f"I understand this may need extra support. "
-        f"I've flagged this as a {priority}-priority case and recommend routing it "
+        f"I've created ticket {ticket_id} as a {priority}-priority case and routed it "
         f"to the {assigned_team} team for further assistance."
     )
 
