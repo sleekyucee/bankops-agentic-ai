@@ -6,6 +6,7 @@ from app.tools.customer_context import get_customer_context
 from app.rag.retriever import retrieve_relevant_chunks
 from app.rag.vector_store import search_vector_store
 from app.db.database import create_support_ticket, record_metric
+from app.crewai.escalation_crew import run_escalation_review
 
 from datetime import datetime, timezone
 import re
@@ -214,13 +215,26 @@ def escalation_node(state: ChatState) -> ChatState:
     else:
         assigned_team = "general_support"
 
+    case_summary = f"Escalation request routed to {assigned_team} with {priority} priority."
+    crew_review = run_escalation_review(
+        case_summary=case_summary,
+        priority=priority,
+        assigned_team=assigned_team,
+        account_risk_level=None,
+    )
+    final_recommendation = crew_review["final_recommendation"]
+    assigned_team = final_recommendation["recommended_team"]
+    priority = final_recommendation["recommended_priority"]
+    human_review_required = final_recommendation["human_review_required"]
+    case_summary = f"Escalation request routed to {assigned_team} with {priority} priority."
+
     issue_type_by_team = {
         "fraud_support": "fraud",
         "account_support": "account_access",
+        "billing_support": "billing",
         "general_support": "general_support",
     }
-    issue_type = issue_type_by_team[assigned_team]
-    case_summary = f"Escalation request routed to {assigned_team} with {priority} priority."
+    issue_type = issue_type_by_team.get(assigned_team, "general_support")
     ticket_id = create_support_ticket(
         user_id=state["user_id"],
         issue_type=issue_type,
@@ -243,6 +257,9 @@ def escalation_node(state: ChatState) -> ChatState:
 
     decision_trace = state.get("decision_trace", []) + [
         "handler: escalation_node",
+        f"crew_review: {crew_review['crew_review_status']}",
+        f"crew_recommended_team: {assigned_team}",
+        f"crew_recommended_priority: {priority}",
         f"priority: {priority}",
         f"assigned_team: {assigned_team}",
         "ticket_created: True",
@@ -264,7 +281,8 @@ def escalation_node(state: ChatState) -> ChatState:
         "decision_trace": decision_trace,
         "ticket_id": ticket_id,
         "case_summary": case_summary,
-        "created_at": created_at
+        "created_at": created_at,
+        "human_review_required": human_review_required
     }
 
 
