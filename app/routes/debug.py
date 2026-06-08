@@ -1,9 +1,12 @@
 from fastapi import APIRouter
+from pydantic import BaseModel
 
+from app.crewai.escalation_crew import run_escalation_review
 from app.db.database import (
     get_metrics_summary,
     get_recent_conversations,
     get_support_tickets,
+    record_metric,
 )
 from app.rag.retriever import retrieve_relevant_chunks
 from app.rag.vector_store import search_vector_store
@@ -11,6 +14,13 @@ from app.tools.customer_context import get_customer_context
 
 
 router = APIRouter(prefix="/debug", tags=["debug"])
+
+
+class EscalationReviewRequest(BaseModel):
+    case_summary: str
+    priority: str
+    assigned_team: str
+    account_risk_level: str | None = None
 
 
 @router.get("/conversations/{user_id}")
@@ -68,3 +78,21 @@ def debug_tickets_for_user(user_id: str):
 @router.get("/metrics")
 def debug_metrics():
     return get_metrics_summary()
+
+
+@router.post("/crew/escalation-review")
+def debug_crew_escalation_review(request: EscalationReviewRequest):
+    record_metric(
+        event_type="crew_review_debug_called",
+        metadata={
+            "priority": request.priority,
+            "assigned_team": request.assigned_team,
+            "account_risk_level": request.account_risk_level,
+        },
+    )
+    return run_escalation_review(
+        case_summary=request.case_summary,
+        priority=request.priority,
+        assigned_team=request.assigned_team,
+        account_risk_level=request.account_risk_level,
+    )

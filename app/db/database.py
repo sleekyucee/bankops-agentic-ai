@@ -384,6 +384,11 @@ def get_metrics_summary() -> dict:
         "rag_vector_used": rag_vector_used,
         "rag_keyword_used": rag_keyword_used,
         "conversations_saved": event_counts.get("conversation_saved", 0),
+        "crew_reviews_completed": event_counts.get("crew_review_completed", 0),
+        "crew_review_debug_calls": event_counts.get(
+            "crew_review_debug_called",
+            0,
+        ),
     }
 
 

@@ -223,9 +223,21 @@ def escalation_node(state: ChatState) -> ChatState:
         account_risk_level=None,
     )
     final_recommendation = crew_review["final_recommendation"]
-    assigned_team = final_recommendation["recommended_team"]
-    priority = final_recommendation["recommended_priority"]
+    recommended_team = final_recommendation["recommended_team"]
+    recommended_priority = final_recommendation["recommended_priority"]
     human_review_required = final_recommendation["human_review_required"]
+    record_metric(
+        event_type="crew_review_completed",
+        user_id=state["user_id"],
+        intent="escalation",
+        metadata={
+            "recommended_team": recommended_team,
+            "recommended_priority": recommended_priority,
+            "human_review_required": human_review_required,
+        },
+    )
+    assigned_team = recommended_team
+    priority = recommended_priority
     case_summary = f"Escalation request routed to {assigned_team} with {priority} priority."
 
     issue_type_by_team = {
