@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.env
+bankops.db
+*.db
+Microsoft/
+.git/
+.vscode/
+.pytest_cache/
+.cache/
+docs/
