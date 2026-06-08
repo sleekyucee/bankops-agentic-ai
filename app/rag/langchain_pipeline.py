@@ -4,8 +4,19 @@ from langchain_community.document_loaders import TextLoader
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from app.core.config import settings
 
-KNOWLEDGE_BASE_PATH = Path(__file__).resolve().parents[2] / "knowledge_base"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _resolve_project_path(path_value: str) -> Path:
+    path = Path(path_value)
+    if path.is_absolute():
+        return path
+    return PROJECT_ROOT / path
+
+
+KNOWLEDGE_BASE_PATH = _resolve_project_path(settings.KNOWLEDGE_BASE_PATH)
 
 
 def load_langchain_documents() -> list[Document]:

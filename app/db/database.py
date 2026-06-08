@@ -1,17 +1,15 @@
 import json
-import sqlite3
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
+
+from app.db.db_provider import DATABASE_PATH, get_database_connection
 
 
-DB_PATH = Path(__file__).resolve().parents[2] / "bankops.db"
+DB_PATH = DATABASE_PATH
 
 
-def get_connection() -> sqlite3.Connection:
-    connection = sqlite3.connect(DB_PATH)
-    connection.row_factory = sqlite3.Row
-    return connection
+def get_connection():
+    return get_database_connection()
 
 
 def create_tables() -> None:
