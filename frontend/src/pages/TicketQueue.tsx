@@ -71,7 +71,11 @@ function Badge({
   );
 }
 
-export function TicketQueue() {
+interface TicketQueueProps {
+  onOpenCustomer: (userId: string) => void;
+}
+
+export function TicketQueue({ onOpenCustomer }: TicketQueueProps) {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -191,6 +195,7 @@ export function TicketQueue() {
                 <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase text-zinc-500">
                   <tr>
                     <th className="px-5 py-3">Ticket ID</th>
+                    <th className="px-5 py-3">Customer</th>
                     <th className="px-5 py-3">Assigned team</th>
                     <th className="px-5 py-3">Priority</th>
                     <th className="px-5 py-3">Status</th>
@@ -200,8 +205,23 @@ export function TicketQueue() {
                 <tbody className="divide-y divide-zinc-200">
                   {tickets.map((ticket) => (
                     <tr key={ticket.ticket_id} className="hover:bg-zinc-50">
-                      <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-zinc-900">
-                        {ticket.ticket_id}
+                      <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => onOpenCustomer(ticket.user_id)}
+                          className="cursor-pointer text-zinc-900 underline decoration-zinc-300 underline-offset-4 hover:text-emerald-700 hover:decoration-emerald-600"
+                        >
+                          {ticket.ticket_id}
+                        </button>
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-4 text-sm">
+                        <button
+                          type="button"
+                          onClick={() => onOpenCustomer(ticket.user_id)}
+                          className="cursor-pointer font-medium text-zinc-700 underline decoration-zinc-300 underline-offset-4 hover:text-emerald-700 hover:decoration-emerald-600"
+                        >
+                          {ticket.user_id}
+                        </button>
                       </td>
                       <td className="px-5 py-4 text-sm text-zinc-700">
                         {formatLabel(ticket.assigned_team)}
@@ -235,12 +255,29 @@ export function TicketQueue() {
                       <p className="text-xs font-medium uppercase text-zinc-500">
                         Ticket
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-zinc-950">
+                      <button
+                        type="button"
+                        onClick={() => onOpenCustomer(ticket.user_id)}
+                        className="mt-1 cursor-pointer text-sm font-semibold text-zinc-950 underline decoration-zinc-300 underline-offset-4 hover:text-emerald-700"
+                      >
                         {ticket.ticket_id}
-                      </p>
+                      </button>
                     </div>
                     <Badge value={ticket.priority} styles={priorityStyles} />
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenCustomer(ticket.user_id)}
+                    className="flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-700 underline decoration-zinc-300 underline-offset-4 hover:text-emerald-700"
+                  >
+                    <UsersRound
+                      aria-hidden="true"
+                      className="shrink-0 text-zinc-400"
+                      size={16}
+                    />
+                    {ticket.user_id}
+                  </button>
 
                   <div className="flex items-center gap-2 text-sm text-zinc-700">
                     <UsersRound

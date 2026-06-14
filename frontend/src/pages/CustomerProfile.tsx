@@ -64,9 +64,15 @@ function SummaryItem({
   );
 }
 
-export function CustomerProfile() {
-  const [selectedUserId, setSelectedUserId] = useState("user_001");
-  const [requestedUserId, setRequestedUserId] = useState("user_001");
+interface CustomerProfileProps {
+  initialUserId?: string;
+}
+
+export function CustomerProfile({
+  initialUserId = "user_001",
+}: CustomerProfileProps) {
+  const [selectedUserId, setSelectedUserId] = useState(initialUserId);
+  const [requestedUserId, setRequestedUserId] = useState(initialUserId);
   const [profile, setProfile] = useState<CustomerProfileData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +109,11 @@ export function CustomerProfile() {
 
     return () => controller.abort();
   }, [loadProfile, requestedUserId]);
+
+  useEffect(() => {
+    setSelectedUserId(initialUserId);
+    setRequestedUserId(initialUserId);
+  }, [initialUserId]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

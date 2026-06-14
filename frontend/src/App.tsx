@@ -110,6 +110,8 @@ function getInitialPage(): Page {
 function App() {
   const [role, setRole] = useState<UserRole | null>(getStoredRole);
   const [activePage, setActivePage] = useState<Page>(getInitialPage);
+  const [selectedCustomerId, setSelectedCustomerId] =
+    useState<string>("user_001");
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
@@ -182,6 +184,11 @@ function App() {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     setRole(null);
     setActivePage("Customer Chat");
+  };
+
+  const handleOpenCustomer = (userId: string) => {
+    setSelectedCustomerId(userId);
+    setActivePage("Customer Profile");
   };
 
   if (!role) {
@@ -406,9 +413,13 @@ function App() {
           </div>
         )}
 
-        {activePage === "Ticket Queue" && <TicketQueue />}
+        {activePage === "Ticket Queue" && (
+          <TicketQueue onOpenCustomer={handleOpenCustomer} />
+        )}
 
-        {activePage === "Customer Profile" && <CustomerProfile />}
+        {activePage === "Customer Profile" && (
+          <CustomerProfile initialUserId={selectedCustomerId} />
+        )}
 
         {activePage === "Metrics Dashboard" && (
           <MetricsDashboard
