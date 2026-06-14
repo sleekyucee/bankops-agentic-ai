@@ -1,10 +1,11 @@
 import {
   AlertCircle,
+  BarChart3,
   BookOpen,
   Bot,
   CircleUserRound,
   Gauge,
-  LifeBuoy,
+  LogOut,
   MessageCircle,
   ShieldCheck,
   TicketCheck,
@@ -19,6 +20,9 @@ import {
 import { ChatConsole } from "./pages/ChatConsole";
 import { CustomerChat } from "./pages/CustomerChat";
 import { CustomerProfile } from "./pages/CustomerProfile";
+import { KnowledgeBase } from "./pages/KnowledgeBase";
+import { Login, type UserRole } from "./pages/Login";
+import { MetricsDashboard } from "./pages/MetricsDashboard";
 import { TicketQueue } from "./pages/TicketQueue";
 
 type Page =
@@ -26,7 +30,9 @@ type Page =
   | "Operations Overview"
   | "Operations Chat"
   | "Ticket Queue"
-  | "Customer Profile";
+  | "Customer Profile"
+  | "Metrics Dashboard"
+  | "Knowledge Base";
 
 type NavigationItem = {
   label: Page;
@@ -65,10 +71,45 @@ const operationsNavigation: NavigationItem[] = [
   },
 ];
 
-const navigation = [...customerNavigation, ...operationsNavigation];
+const managerNavigation: NavigationItem[] = [
+  {
+    label: "Metrics Dashboard",
+    description: "Management activity metrics",
+    icon: BarChart3,
+  },
+  {
+    label: "Knowledge Base",
+    description: "Manage support documents",
+    icon: BookOpen,
+  },
+];
+
+const AUTH_STORAGE_KEY = "bankops_demo_role";
+
+function getStoredRole(): UserRole | null {
+  const storedRole = localStorage.getItem(AUTH_STORAGE_KEY);
+
+  if (
+    storedRole === "customer" ||
+    storedRole === "support_agent" ||
+    storedRole === "manager"
+  ) {
+    return storedRole;
+  }
+
+  return null;
+}
+
+function getInitialPage(): Page {
+  const storedRole = getStoredRole();
+  return storedRole === "support_agent" || storedRole === "manager"
+    ? "Operations Overview"
+    : "Customer Chat";
+}
 
 function App() {
-  const [activePage, setActivePage] = useState<Page>("Customer Chat");
+  const [role, setRole] = useState<UserRole | null>(getStoredRole);
+  const [activePage, setActivePage] = useState<Page>(getInitialPage);
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
@@ -129,6 +170,39 @@ function App() {
     },
   ];
 
+  const handleLogin = (selectedRole: UserRole) => {
+    localStorage.setItem(AUTH_STORAGE_KEY, selectedRole);
+    setRole(selectedRole);
+    setActivePage(
+      selectedRole === "customer" ? "Customer Chat" : "Operations Overview",
+    );
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    setRole(null);
+    setActivePage("Customer Chat");
+  };
+
+  if (!role) {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  const isCustomer = role === "customer";
+  const navigation =
+    role === "customer"
+      ? customerNavigation
+      : role === "manager"
+        ? [...operationsNavigation, ...managerNavigation]
+        : operationsNavigation;
+
+  const roleLabel =
+    role === "support_agent"
+      ? "Support Agent"
+      : role === "manager"
+        ? "Manager"
+        : "Customer";
+
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-950">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-zinc-800 bg-zinc-950 text-zinc-100 lg:flex lg:flex-col">
@@ -137,77 +211,129 @@ function App() {
             <ShieldCheck aria-hidden="true" size={20} strokeWidth={2.2} />
           </div>
           <div>
-            <p className="text-sm font-semibold">BankOps</p>
-            <p className="text-xs text-zinc-400">Support Console</p>
+            <p className="text-sm font-semibold">BankOps RUCA</p>
+            <p className="text-xs text-zinc-400">{roleLabel}</p>
           </div>
         </div>
 
         <nav className="flex-1 px-3 py-5" aria-label="Primary">
-          <p className="px-3 text-xs font-medium uppercase text-zinc-500">
-            Customer
-          </p>
-          <div className="mt-2 space-y-1">
-            {customerNavigation.map(({ label, description, icon: Icon }) => (
-              <button
-                className={`flex min-h-14 w-full items-center gap-3 rounded-md px-3 py-2 text-left ${
-                  activePage === label
-                    ? "bg-zinc-800 text-white"
-                    : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
-                }`}
-                key={label}
-                onClick={() => setActivePage(label)}
-                type="button"
-              >
-                <Icon aria-hidden="true" className="shrink-0" size={18} />
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium">{label}</span>
-                  <span className="block truncate text-xs text-zinc-500">
-                    {description}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <p className="mt-7 px-3 text-xs font-medium uppercase text-zinc-500">
-            Internal Operations
-          </p>
-          <div className="mt-2 space-y-1">
-            {operationsNavigation.map(
-              ({ label, description, icon: Icon }) => (
-                <button
-                  className={`flex min-h-14 w-full items-center gap-3 rounded-md px-3 py-2 text-left ${
-                    activePage === label
-                      ? "bg-zinc-800 text-white"
-                      : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
-                  }`}
-                  key={label}
-                  onClick={() => setActivePage(label)}
-                  type="button"
-                >
-                  <Icon aria-hidden="true" className="shrink-0" size={18} />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium">{label}</span>
-                    <span className="block truncate text-xs text-zinc-500">
-                      {description}
+          {isCustomer ? (
+            <>
+              <p className="px-3 text-xs font-medium uppercase text-zinc-500">
+                Customer
+              </p>
+              <div className="mt-2 space-y-1">
+                {customerNavigation.map(
+                  ({ label, description, icon: Icon }) => (
+                    <button
+                      className={`flex min-h-14 w-full items-center gap-3 rounded-md px-3 py-2 text-left ${
+                        activePage === label
+                          ? "bg-zinc-800 text-white"
+                          : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+                      }`}
+                      key={label}
+                      onClick={() => setActivePage(label)}
+                      type="button"
+                    >
+                      <Icon
+                        aria-hidden="true"
+                        className="shrink-0"
+                        size={18}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">
+                          {label}
+                        </span>
+                        <span className="block truncate text-xs text-zinc-500">
+                          {description}
+                        </span>
+                      </span>
+                    </button>
+                  ),
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="px-3 text-xs font-medium uppercase text-zinc-500">
+                Internal Operations
+              </p>
+              <div className="mt-2 space-y-1">
+                {operationsNavigation.map(({ label, description, icon: Icon }) => (
+                  <button
+                    className={`flex min-h-14 w-full items-center gap-3 rounded-md px-3 py-2 text-left ${
+                      activePage === label
+                        ? "bg-zinc-800 text-white"
+                        : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+                    }`}
+                    key={label}
+                    onClick={() => setActivePage(label)}
+                    type="button"
+                  >
+                    <Icon
+                      aria-hidden="true"
+                      className="shrink-0"
+                      size={18}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{label}</span>
+                      <span className="block truncate text-xs text-zinc-500">
+                        {description}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              ),
-            )}
-          </div>
+                  </button>
+                ))}
+              </div>
+              {role === "manager" && (
+                <>
+                  <p className="mt-7 px-3 text-xs font-medium uppercase text-zinc-500">
+                    Manager
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {managerNavigation.map(
+                      ({ label, description, icon: Icon }) => (
+                        <button
+                          className={`flex min-h-14 w-full items-center gap-3 rounded-md px-3 py-2 text-left ${
+                            activePage === label
+                              ? "bg-zinc-800 text-white"
+                              : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+                          }`}
+                          key={label}
+                          onClick={() => setActivePage(label)}
+                          type="button"
+                        >
+                          <Icon
+                            aria-hidden="true"
+                            className="shrink-0"
+                            size={18}
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium">
+                              {label}
+                            </span>
+                            <span className="block truncate text-xs text-zinc-500">
+                              {description}
+                            </span>
+                          </span>
+                        </button>
+                      ),
+                    )}
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </nav>
 
         <div className="border-t border-zinc-800 p-4">
-          <div className="flex items-center gap-3">
-            <div className="grid size-8 place-items-center rounded-full bg-zinc-800">
-              <LifeBuoy aria-hidden="true" size={16} />
-            </div>
-            <div>
-              <p className="text-xs font-medium">Operations workspace</p>
-              <p className="text-xs text-zinc-500">Development scaffold</p>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm text-zinc-300 transition hover:bg-zinc-900 hover:text-white"
+          >
+            <LogOut aria-hidden="true" size={17} />
+            Logout
+          </button>
         </div>
       </aside>
 
@@ -215,25 +341,40 @@ function App() {
         <header className="flex h-16 items-center justify-between border-b border-zinc-200 bg-white px-5 sm:px-8">
           <div>
             <p className="text-xs font-medium uppercase text-zinc-500">
-              {activePage === "Customer Chat" ? "Customer support" : "Operations"}
+              {isCustomer ? "Customer support" : `Internal ${roleLabel}`}
             </p>
             <h1 className="text-lg font-semibold">{activePage}</h1>
           </div>
-          {activePage === "Customer Chat" ? (
-            <div className="flex items-center gap-2 text-sm text-zinc-600">
-              <ShieldCheck aria-hidden="true" className="text-emerald-700" size={16} />
-              Secure support session
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-sm text-zinc-600">
-              <span
-                className={`size-2 rounded-full ${
-                  metricsError ? "bg-red-500" : "bg-emerald-500"
-                }`}
-              />
-              {metricsError ? "Backend unavailable" : "Metrics connected"}
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {isCustomer ? (
+              <div className="hidden items-center gap-2 text-sm text-zinc-600 sm:flex">
+                <ShieldCheck
+                  aria-hidden="true"
+                  className="text-emerald-700"
+                  size={16}
+                />
+                Secure support session
+              </div>
+            ) : (
+              <div className="hidden items-center gap-2 text-sm text-zinc-600 sm:flex">
+                <span
+                  className={`size-2 rounded-full ${
+                    metricsError ? "bg-red-500" : "bg-emerald-500"
+                  }`}
+                />
+                {metricsError ? "Backend unavailable" : "Metrics connected"}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex h-9 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 lg:hidden"
+              aria-label="Logout"
+            >
+              <LogOut aria-hidden="true" size={16} />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
         </header>
 
         <nav
@@ -268,6 +409,18 @@ function App() {
         {activePage === "Ticket Queue" && <TicketQueue />}
 
         {activePage === "Customer Profile" && <CustomerProfile />}
+
+        {activePage === "Metrics Dashboard" && (
+          <MetricsDashboard
+            metrics={metrics}
+            isLoading={isLoadingMetrics}
+            error={metricsError}
+          />
+        )}
+
+        {activePage === "Knowledge Base" && role === "manager" && (
+          <KnowledgeBase />
+        )}
 
         {activePage === "Operations Overview" && (
           <div className="mx-auto max-w-7xl space-y-8 p-5 sm:p-8">

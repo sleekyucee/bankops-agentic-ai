@@ -1,0 +1,4 @@
+RUCA Premium Support Policy
+
+Premium customers receive priority support within 30 minutes.
+Billing issues for premium customers should be routed to priority_support.
